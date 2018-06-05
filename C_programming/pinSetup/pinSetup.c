@@ -9,6 +9,7 @@
 #include <unistd.h> // Contains UNIX system calls.
 #include <stdbool.h> // For proper handling of Boolean values.
 #include <string.h> // For handling string functions
+#include <getopt.h> // For getopt_long().
 
 // Some defines to ease readability:
 
@@ -23,14 +24,25 @@
 #define MAX_ARGLEN 2 // How many chars can be in an argument?
 #define MAX_ARGNUM 4 // Maximum amount of arguments to take.
 
-enum argTypes {none, add, remove, input, output}; // The types of arguments that are legal. None will count as no argument.
+char *addPins = 0, *removePins = 0, *inputPins = 0, *outputPins = 0;
+
+int opts; // To hold the picked options from getopt_long().
+	// Is an int type in order to hodle the return value of -1, when options are over.
+
+static struct option long_options[] = 	{
+					{"add", required_argument,	0, 'a'},
+					{"remove", required_argument,	0, 'r'},
+					{"input", required_argument,	0, 'i'},
+					{"output", required_argument,	0, 'o'}
+					};
+int option_index = 0;
 
 const int legalPins[GPIO_AMNT] = {2, 3, 4, 14, 15, 17, 18, 27, 22, 23, 24, 10, 9, 25,
 					11, 8, 7, 5, 6, 12, 13, 19, 16, 26, 20, 21};
 
 static int GPIOExport(int pin);
 static int GPIOUnexport(int pin);
-static enum argTypes evaluteArg(char * arg);
+static void printHelp(void);
 
 int main (int argc, char ** argv){
 
@@ -39,50 +51,41 @@ int main (int argc, char ** argv){
 	// -i for setting them as inputs
 	// -o for setting them as outputs
 
-	// Arg flags keep track of which arguments were passed.
-	enum argTypes argFlags[MAX_ARGNUM] = {none, none, none, none};
+	while(1){
+		// The opts variable is set to the value parsed using getopt_long:
+		opts = getopt_long(argc/*passed by main*/, argv/*passed by main*/, "a:r:i:o:"/*Valid short opts*/, long_options, &option_index);
 
-	int i = 1; // Iterator variable for do-while loop:
-
-	// Do-while will evaluate the arguments, and assign them to the argFlags array.
-	do{
-		argFlags[i] = evaluateArg(argv[i]); // Assigns the option to the flag index.
-		i++; // Up iterator.
-	}
-	while(argFlags[i] != none && i <= MAX_ARGNUM); // When there are no more 
-
-
-
-	// An array for the pins to be exported is set:
-	int pins[argc-1];
-
-	// The arguments are all converted to integers and evaluated:
-	for(int i = 1; i < argc; i++){
-		pins[i] = atoi(argv[i]); // First the conversion.
-		bool legalityCheck = false; 	// Then a flag is set to false, and must be flipped to true for a pin to
-						// Be considered legal (existing on the board as GPIO) for usage.
-
-		// Then the pin entry is compared to the list of viable pins for the board:
-		for(int j = 0; j < GPIO_AMNT; j++){
-			// If it exists:
-			if(pins[i] == legalPins[j]){
-				//TODO: Change the order of these two statements, and add a check for success.
-				fprintf(stdout, "Exported pin %d\n", pins[i]); 	// A message is passed to stdout to inform
-										// the user!
-				GPIOExport(pins[i]); // And the pin is exported
-				legalityCheck = true; // The pins exists, and thus no warning will be issued.
-				break; // No need to traverse the rest of the array.
-			}
+		// If the end of options passed is reached, the opts variable is assigned -1
+		// This is used to break the eternal while loop.
+		if(opts = -1){
+			break;
 		}
 
-		// If the legality check fails, the user will be notified through stderr:
-		if(!legalityCheck){
-			fprintf(stderr, "Warning, pin %d does not exist on the board!\nIt will be ignored.\n", pins[i]);
-			pins[i] = -1; // If array is used for further processing, the pin is marked as unusable.
+		// If not, then the options can be used to set the relevant flags for program execution:
+		switch(opts){
+			case 'a':
+				addPins = optarg;
+				printf("%s\n", optarg);
+				break;
+			case 'r':
+				removePins = optarg;
+				printf("%s\n", optarg);
+				break;
+			case 'i':
+				inputPins = optarg;
+				printf("%s\n", optarg);
+				break;
+			case 'o':
+				outputPins = optarg;
+				printf("%s\n", optarg);
+				break;
+			default:
+				printHelp();
+				break;
 		}
 	}
-
-	if ()
+	printf("All Args:\n");
+	printf("-a: %s\n-r: %s\n-i: %s\n-o: %s\n", addPins, removePins, inputPins, outputPins);
 }
 
 static int GPIOExport(int pin){
@@ -133,33 +136,10 @@ static int GPIOUnexport(int pin){
 	return 0;
 }
 
-static enum argTypes evaluateArg(char * arg){
-	// -a for adding pins
-	// -r for removing pins
-	// -i for setting them as inputs
-	// -o for setting them as outputs
-
-	// If the argument -a calls for and addition of the pin to the raspberry pi's active pins:
-	if(strncmp(arg, "-a", MAX_ARGLEN) == 0){
-		return add;
-	}
-
-	// If the argument -r wants it removed:
-	else if(strncmp, "-r", MAX_ARGLEN) == 0){
-		return remove;
-	}
-
-	// If the argument -i is set, the pins mentioned are set as inputs.
-	else if(strncmp, "-i", MAX_ARGLEN) == 0){
-		return input;
-	}
-
-	// If the argument -o is set, the pins will be set as outputs instead.
-	else if(strncmp, "-o", MAX_ARGLEN) == 0){
-		return output;
-	}
-
-	// If the argument is neither of these, the function will return none.
-	// Then it is probably a pin number, and will be treated as such.
-	else return none;
+static void printHelp(void){
+	printf("Options:\n");
+	printf("-a, --add [n,m,o..]:\tAdds specified pin(s) to the GPIOs of Raspberry Pi\n");
+	printf("-r, --remove [n,m,o..]\tRemoves specified pin(s) form the GPIOs of Raspberry Pi\n");
+	printf("-i, --input [n,m,o..]\tSets specified pin(s) up as input\n");
+	printf("-o, --output [n,m,o..]\tSets specified pin(s) up as output\n");
 }
